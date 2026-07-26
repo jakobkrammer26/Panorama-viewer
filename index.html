@@ -1,281 +1,459 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>3D 360° Panorama Viewer</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      overflow: hidden;
-      background-color: #0d0f12;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      color: #ffffff;
-    }
-    
-    /* Overlay & Upload-Fenster */
-    #ui-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      background: rgba(13, 15, 18, 0.85);
-      backdrop-filter: blur(10px);
-      z-index: 10;
-      transition: opacity 0.5s ease;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Panorama — 360°</title>
+<style>
+  :root{
+    --ink:#0b0d10;
+    --ink-soft:#1a1d22;
+    --paper:#f3ede3;
+    --amber:#e8a33d;
+    --amber-dim:#8a6326;
+    --line: rgba(243,237,227,0.14);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; width:100%;
+    background:var(--ink); color:var(--paper);
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    overflow:hidden;
+    overscroll-behavior:none;
+  }
 
-    .card {
-      background: #1a1d24;
-      border: 1px solid #2e3440;
-      border-radius: 16px;
-      padding: 30px;
-      width: 90%;
-      max-width: 450px;
-      text-align: center;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
-    }
+  /* ---------- Upload Screen ---------- */
+  #uploadScreen{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:32px;
+    background:
+      radial-gradient(120% 90% at 50% -10%, #171a1f 0%, var(--ink) 55%);
+    text-align:center;
+    transition:opacity .5s ease, visibility .5s ease;
+    z-index:20;
+  }
+  #uploadScreen.hidden{ opacity:0; visibility:hidden; pointer-events:none; }
 
-    h1 {
-      font-size: 24px;
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
+  .eyebrow{
+    font-family: "Georgia", "Times New Roman", serif;
+    letter-spacing:.28em;
+    text-transform:uppercase;
+    font-size:11px;
+    color:var(--amber);
+    margin-bottom:18px;
+    opacity:.85;
+  }
+  h1{
+    font-family:"Georgia","Times New Roman",serif;
+    font-weight:400;
+    font-size:clamp(30px,7vw,52px);
+    line-height:1.05;
+    margin:0 0 14px 0;
+    letter-spacing:-0.01em;
+  }
+  h1 em{ font-style:italic; color:var(--amber); }
+  .sub{
+    max-width:420px;
+    font-size:15px;
+    line-height:1.6;
+    color:rgba(243,237,227,0.6);
+    margin:0 0 40px 0;
+  }
 
-    p {
-      color: #a0a6b5;
-      font-size: 14px;
-      margin-bottom: 24px;
-    }
+  .drop{
+    width:min(86vw,380px);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:36px 22px;
+    cursor:pointer;
+    position:relative;
+    transition:border-color .25s ease, background .25s ease;
+  }
+  .drop:active{ background:rgba(232,163,61,0.06); border-color:var(--amber-dim); }
 
-    /* Upload Zone */
-    .drop-zone {
-      border: 2px dashed #007aff;
-      border-radius: 12px;
-      padding: 30px 20px;
-      background: rgba(0, 122, 255, 0.05);
-      cursor: pointer;
-      transition: background 0.2s, border-color 0.2s;
-      margin-bottom: 20px;
-    }
+  .drop-mark{
+    width:46px;height:46px;
+    margin:0 auto 18px auto;
+    border:1px solid var(--amber);
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--amber);
+  }
+  .drop-mark svg{ width:18px;height:18px; }
 
-    .drop-zone:hover {
-      background: rgba(0, 122, 255, 0.15);
-    }
+  .drop-title{ font-size:15px; letter-spacing:.02em; margin-bottom:6px; }
+  .drop-hint{ font-size:12px; color:rgba(243,237,227,0.4); letter-spacing:.03em; }
 
-    .drop-zone-text {
-      font-size: 14px;
-      color: #007aff;
-      font-weight: 500;
-    }
+  input[type=file]{ display:none; }
 
-    #fileInput {
-      display: none;
-    }
+  .footer-note{
+    position:absolute; bottom:26px; left:0; right:0;
+    text-align:center;
+    font-size:11px;
+    letter-spacing:.08em;
+    color:rgba(243,237,227,0.28);
+    text-transform:uppercase;
+  }
 
-    /* Start Button */
-    #startButton {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      font-weight: 600;
-      color: white;
-      background-color: #007aff;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      opacity: 0.5;
-      pointer-events: none;
-      transition: opacity 0.2s, background-color 0.2s;
-    }
+  /* ---------- Viewer ---------- */
+  #viewer{
+    position:fixed; inset:0;
+    background:#000;
+    touch-action:none;
+  }
+  #pano{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    background-repeat:no-repeat;
+    background-position:50% 50%;
+    background-size:auto 100%;
+    will-change:background-position;
+  }
 
-    #startButton.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
+  /* ---------- HUD ---------- */
+  #hud{
+    position:fixed; inset:0;
+    pointer-events:none;
+    z-index:10;
+  }
+  .hud-top{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding: max(18px, env(safe-area-inset-top)) 20px 0 20px;
+  }
+  .hud-brand{
+    font-family:"Georgia",serif; font-style:italic; font-size:13px;
+    color:rgba(243,237,227,0.55);
+    letter-spacing:.02em;
+  }
+  .btn{
+    pointer-events:auto;
+    border:1px solid rgba(243,237,227,0.22);
+    background:rgba(11,13,16,0.5);
+    backdrop-filter:blur(6px);
+    color:var(--paper);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    padding:10px 16px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+  .btn:active{ background:rgba(232,163,61,0.18); border-color:var(--amber-dim); }
 
-    #startButton.active:hover {
-      background-color: #0056b3;
-    }
+  .compass{
+    position:absolute;
+    bottom:max(22px, env(safe-area-inset-bottom));
+    left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .compass-ring{
+    width:64px; height:64px;
+    border-radius:50%;
+    border:1px solid rgba(243,237,227,0.2);
+    position:relative;
+  }
+  .compass-needle{
+    position:absolute; left:50%; top:50%;
+    width:2px; height:24px;
+    background:var(--amber);
+    transform-origin:50% 100%;
+    margin-left:-1px; margin-top:-24px;
+    transition: transform .05s linear;
+  }
+  .compass-dot{
+    position:absolute; left:50%; top:50%;
+    width:5px;height:5px;border-radius:50%;
+    background:var(--paper);
+    margin-left:-2.5px; margin-top:-2.5px;
+  }
+  .compass-label{
+    font-size:10px; letter-spacing:.15em; text-transform:uppercase;
+    color:rgba(243,237,227,0.4);
+  }
 
-    /* Zurück-Button während der Ansicht */
-    #resetButton {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      padding: 10px 16px;
-      background: rgba(0, 0, 0, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      color: white;
-      border-radius: 20px;
-      backdrop-filter: blur(5px);
-      cursor: pointer;
-      z-index: 5;
-      display: none;
-      font-size: 14px;
-    }
-  </style>
-  
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DeviceOrientationControls.js"></script>
+  #permOverlay{
+    position:fixed; inset:0;
+    background:rgba(11,13,16,0.92);
+    display:flex; align-items:center; justify-content:center;
+    z-index:30;
+    padding:32px;
+  }
+  #permOverlay.hidden{ display:none; }
+  .perm-box{
+    max-width:340px; text-align:center;
+  }
+  .perm-box h2{
+    font-family:"Georgia",serif; font-weight:400; font-size:22px; margin:0 0 12px 0;
+  }
+  .perm-box p{
+    font-size:14px; line-height:1.6; color:rgba(243,237,227,0.6); margin:0 0 26px 0;
+  }
+  .btn-solid{
+    pointer-events:auto;
+    border:1px solid var(--amber);
+    background:var(--amber);
+    color:var(--ink);
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    padding:13px 28px;
+    border-radius:100px;
+    cursor:pointer;
+  }
+
+  .toast{
+    position:fixed;
+    top:max(70px, env(safe-area-inset-top) + 60px);
+    left:50%; transform:translateX(-50%) translateY(-10px);
+    background:rgba(11,13,16,0.85);
+    border:1px solid rgba(243,237,227,0.18);
+    backdrop-filter:blur(6px);
+    padding:10px 18px;
+    border-radius:100px;
+    font-size:12px;
+    letter-spacing:.03em;
+    opacity:0;
+    transition:opacity .3s ease, transform .3s ease;
+    z-index:25;
+    pointer-events:none;
+    white-space:nowrap;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+</style>
 </head>
 <body>
 
-  <div id="ui-container">
-    <div class="card">
-      <h1>360° Kino & Galerie</h1>
-      <p>Lade ein Panoramafoto (PNG oder JPG) hoch, um es auf deinem iPad im Raum zu betrachten.</p>
-      
-      <div class="drop-zone" id="dropZone">
-        <span class="drop-zone-text" id="dropZoneText">📁 Bild auswählen oder hierher ziehen</span>
-        <input type="file" id="fileInput" accept="image/png, image/jpeg">
-      </div>
+  <!-- Upload Screen -->
+  <div id="uploadScreen">
+    <div class="eyebrow">360° Betrachter</div>
+    <h1>Dein Bild wird<br><em>ein Raum.</em></h1>
+    <p class="sub">Lade ein Panoramafoto hoch und schau dich um, indem du dein iPad bewegst — wie durch ein Fenster in alle Richtungen.</p>
 
-      <button id="startButton">Erlebnis Starten</button>
+    <label class="drop" id="dropZone">
+      <div class="drop-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 16V4M12 4l-4 4M12 4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="drop-title">Panoramabild wählen</div>
+      <div class="drop-hint">JPG · PNG — idealerweise 2:1 (360°)</div>
+      <input type="file" id="fileInput" accept="image/*">
+    </label>
+
+    <div class="footer-note">Bewegung · Blick · Bild</div>
+  </div>
+
+  <!-- Viewer -->
+  <div id="viewer">
+    <div id="pano"></div>
+  </div>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="hud-brand">Panorama</div>
+      <button class="btn" id="newImageBtn">Neues Bild</button>
+    </div>
+    <div class="compass">
+      <div class="compass-ring">
+        <div class="compass-needle" id="needle"></div>
+        <div class="compass-dot"></div>
+      </div>
+      <div class="compass-label" id="modeLabel">Bewege dein iPad</div>
     </div>
   </div>
 
-  <button id="resetButton">➔ Neues Bild</button>
+  <div class="toast" id="toast"></div>
 
-  <script>
-    let scene, camera, renderer, controls, sphereMesh;
-    let loadedImageSrc = null;
+  <!-- Permission overlay (iOS motion permission) -->
+  <div id="permOverlay" class="hidden">
+    <div class="perm-box">
+      <h2>Bewegung erlauben</h2>
+      <p>Um das Panorama durch Bewegen deines iPads zu steuern, braucht diese Seite Zugriff auf die Bewegungssensoren.</p>
+      <button class="btn-solid" id="permBtn">Zugriff erlauben</button>
+    </div>
+  </div>
 
-    const fileInput = document.getElementById('fileInput');
-    const dropZone = document.getElementById('dropZone');
-    const dropZoneText = document.getElementById('dropZoneText');
-    const startButton = document.getElementById('startButton');
-    const uiContainer = document.getElementById('ui-container');
-    const resetButton = document.getElementById('resetButton');
+<script>
+(function(){
+  const uploadScreen = document.getElementById('uploadScreen');
+  const dropZone = document.getElementById('fileInput') ? document.getElementById('dropZone') : null;
+  const fileInput = document.getElementById('fileInput');
+  const pano = document.getElementById('pano');
+  const newImageBtn = document.getElementById('newImageBtn');
+  const permOverlay = document.getElementById('permOverlay');
+  const permBtn = document.getElementById('permBtn');
+  const needle = document.getElementById('needle');
+  const modeLabel = document.getElementById('modeLabel');
+  const toast = document.getElementById('toast');
 
-    // 1. Datei-Upload Handling
-    dropZone.addEventListener('click', () => fileInput.click());
+  let imgLoaded = false;
+  let panoWidth = 0;   // rendered width of the background image (px)
+  let viewportW = window.innerWidth;
+  let viewportH = window.innerHeight;
 
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) handleFile(file);
-    });
+  // Yaw: 0-360, current horizontal look angle
+  let yaw = 0;
+  let baseHeading = null;     // calibration offset from compass
+  let usingGyro = false;
 
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.style.borderColor = '#34c759';
-    });
+  // Drag fallback state
+  let dragging = false;
+  let lastX = 0;
+  let dragYawStart = 0;
 
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.style.borderColor = '#007aff';
-    });
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> toast.classList.remove('show'), 2200);
+  }
 
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.style.borderColor = '#007aff';
-      const file = e.dataTransfer.files[0];
-      if (file) handleFile(file);
-    });
+  function handleFile(file){
+    if(!file || !file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const testImg = new Image();
+    testImg.onload = function(){
+      pano.style.backgroundImage = `url(${url})`;
+      imgLoaded = true;
+      uploadScreen.classList.add('hidden');
+      layoutPano();
+      requestMotionAccess();
+    };
+    testImg.src = url;
+  }
 
-    function handleFile(file) {
-      if (file.type === 'image/png' || file.type === 'image/jpeg') {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          loadedImageSrc = event.target.result;
-          dropZoneText.innerText = `✓ ${file.name}`;
-          startButton.classList.add('active');
-        };
-        reader.readAsDataURL(file);
-      } else {
-        alert('Bitte wähle eine PNG- oder JPG-Datei aus.');
-      }
-    }
+  dropZone.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', (e)=> handleFile(e.target.files[0]));
 
-    // 2. Initialisierung & Berechtigungen
-    startButton.addEventListener('click', () => {
-      if (!loadedImageSrc) return;
+  newImageBtn.addEventListener('click', ()=>{
+    imgLoaded = false;
+    uploadScreen.classList.remove('hidden');
+    fileInput.value = '';
+  });
 
-      // iOS Motion Sensor Berechtigung anfragen
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        DeviceOrientationEvent.requestPermission()
-          .then(permissionState => {
-            if (permissionState === 'granted') {
-              start3DView();
-            } else {
-              alert('Zugriff auf Bewegungssensoren verweigert.');
-            }
-          })
-          .catch(console.error);
-      } else {
-        start3DView();
-      }
-    });
+  function layoutPano(){
+    viewportW = window.innerWidth;
+    viewportH = window.innerHeight;
+    // Render the background image at a width proportional to 360°,
+    // e.g. 4x viewport width gives a reasonably wide field for wrapping math.
+    panoWidth = viewportW * (360/90); // treat ~90° as one screen width of content
+    pano.style.backgroundSize = `${panoWidth}px 100%`;
+    render();
+  }
+  window.addEventListener('resize', layoutPano);
+  window.addEventListener('orientationchange', ()=> setTimeout(layoutPano, 200));
 
-    // 3. 3D-Szene aufbauen
-    function start3DView() {
-      uiContainer.style.opacity = '0';
-      setTimeout(() => { uiContainer.style.display = 'none'; }, 500);
-      resetButton.style.display = 'block';
+  function render(){
+    if(!imgLoaded) return;
+    const norm = ((yaw % 360) + 360) % 360;
+    const offset = -(norm/360) * panoWidth;
+    pano.style.backgroundPosition = `${offset}px 50%`;
+    needle.style.transform = `rotate(${norm}deg)`;
+  }
 
-      if (!scene) {
-        scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  /* ---------------- Gyroscope control ---------------- */
+  function requestMotionAccess(){
+    const needsPermission = typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function';
 
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
-
-        controls = new THREE.DeviceOrientationControls(camera);
-
-        // Kugel erstellen (Innenseite bedrucken)
-        const geometry = new THREE.SphereGeometry(500, 60, 40);
-        geometry.scale(-1, 1, 1);
-
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(loadedImageSrc, (texture) => {
-          const material = new THREE.MeshBasicMaterial({ map: texture });
-          sphereMesh = new THREE.Mesh(geometry, material);
-          scene.add(sphereMesh);
+    if(needsPermission){
+      permOverlay.classList.remove('hidden');
+      permBtn.onclick = function(){
+        DeviceOrientationEvent.requestPermission().then(state=>{
+          permOverlay.classList.add('hidden');
+          if(state === 'granted'){
+            enableGyro();
+          } else {
+            enableDragFallback();
+            showToast('Bewegung nicht erlaubt — ziehe mit dem Finger');
+          }
+        }).catch(()=>{
+          permOverlay.classList.add('hidden');
+          enableDragFallback();
         });
+      };
+    } else if('DeviceOrientationEvent' in window){
+      enableGyro();
+    } else {
+      enableDragFallback();
+      showToast('Kein Bewegungssensor gefunden — ziehe mit dem Finger');
+    }
+  }
 
-        window.addEventListener('resize', onWindowResize);
-        animate();
-      } else {
-        // Falls bereits eine Szene existiert, nur die Textur austauschen
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(loadedImageSrc, (texture) => {
-          sphereMesh.material.map = texture;
-          sphereMesh.material.needsUpdate = true;
-        });
-      }
+  function enableGyro(){
+    usingGyro = true;
+    modeLabel.textContent = 'Bewege dein iPad';
+    window.addEventListener('deviceorientation', onOrientation, true);
+    // Always also allow drag as a supplement/override
+    enableDragFallback(true);
+  }
+
+  function onOrientation(e){
+    let heading = null;
+
+    // iOS provides webkitCompassHeading (0 = North, clockwise)
+    if(typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)){
+      heading = e.webkitCompassHeading;
+    } else if(e.alpha !== null){
+      // Fallback for non-iOS: alpha counts counter-clockwise from device's initial position
+      heading = 360 - e.alpha;
     }
 
-    // 4. Steuerungs-Loop & Resizing
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+    if(heading === null) return;
+
+    if(baseHeading === null){
+      baseHeading = heading;
     }
 
-    function animate() {
-      requestAnimationFrame(animate);
-      if (controls) {
-        controls.update();
-      }
-      renderer.render(scene, camera);
-    }
+    let delta = heading - baseHeading;
+    yaw = delta;
+    render();
+  }
 
-    // Reset-Button Logik
-    resetButton.addEventListener('click', () => {
-      uiContainer.style.display = 'flex';
-      setTimeout(() => { uiContainer.style.opacity = '1'; }, 10);
-      resetButton.style.display = 'none';
-    });
-  </script>
+  /* ---------------- Drag fallback ---------------- */
+  function enableDragFallback(asSupplement){
+    if(!asSupplement){
+      modeLabel.textContent = 'Ziehe mit dem Finger';
+    }
+    const el = document.getElementById('viewer');
+
+    el.addEventListener('touchstart', onDragStart, {passive:true});
+    el.addEventListener('touchmove', onDragMove, {passive:true});
+    el.addEventListener('touchend', onDragEnd, {passive:true});
+
+    el.addEventListener('mousedown', onDragStart);
+    window.addEventListener('mousemove', onDragMove);
+    window.addEventListener('mouseup', onDragEnd);
+  }
+
+  function getX(e){
+    return e.touches ? e.touches[0].clientX : e.clientX;
+  }
+
+  function onDragStart(e){
+    dragging = true;
+    lastX = getX(e);
+    dragYawStart = yaw;
+  }
+  function onDragMove(e){
+    if(!dragging) return;
+    const x = getX(e);
+    const dx = x - lastX;
+    // Convert pixel drag to degrees: full viewport width drag = 90 degrees
+    const degPerPx = 90 / viewportW;
+    yaw = yaw - dx * degPerPx;
+    lastX = x;
+    render();
+  }
+  function onDragEnd(){
+    dragging = false;
+  }
+
+})();
+</script>
 </body>
 </html>
