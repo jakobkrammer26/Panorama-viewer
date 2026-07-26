@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>3D 360° Panorama Viewer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      overflow: hidden;
+      background-color: #0d0f12;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #ffffff;
+    }
+    
+    /* Overlay & Upload-Fenster */
+    #ui-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(13, 15, 18, 0.85);
+      backdrop-filter: blur(10px);
+      z-index: 10;
+      transition: opacity 0.5s ease;
+    }
+
+    .card {
+      background: #1a1d24;
+      border: 1px solid #2e3440;
+      border-radius: 16px;
+      padding: 30px;
+      width: 90%;
+      max-width: 450px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    p {
+      color: #a0a6b5;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+
+    /* Upload Zone */
+    .drop-zone {
+      border: 2px dashed #007aff;
+      border-radius: 12px;
+      padding: 30px 20px;
+      background: rgba(0, 122, 255, 0.05);
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      margin-bottom: 20px;
+    }
+
+    .drop-zone:hover {
+      background: rgba(0, 122, 255, 0.15);
+    }
+
+    .drop-zone-text {
+      font-size: 14px;
+      color: #007aff;
+      font-weight: 500;
+    }
+
+    #fileInput {
+      display: none;
+    }
+
+    /* Start Button */
+    #startButton {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+      background-color: #007aff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      opacity: 0.5;
+      pointer-events: none;
+      transition: opacity 0.2s, background-color 0.2s;
+    }
+
+    #startButton.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #startButton.active:hover {
+      background-color: #0056b3;
+    }
+
+    /* Zurück-Button während der Ansicht */
+    #resetButton {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 10px 16px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: white;
+      border-radius: 20px;
+      backdrop-filter: blur(5px);
+      cursor: pointer;
+      z-index: 5;
+      display: none;
+      font-size: 14px;
+    }
+  </style>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/DeviceOrientationControls.js"></script>
+</head>
+<body>
+
+  <div id="ui-container">
+    <div class="card">
+      <h1>360° Kino & Galerie</h1>
+      <p>Lade ein Panoramafoto (PNG oder JPG) hoch, um es auf deinem iPad im Raum zu betrachten.</p>
+      
+      <div class="drop-zone" id="dropZone">
+        <span class="drop-zone-text" id="dropZoneText">📁 Bild auswählen oder hierher ziehen</span>
+        <input type="file" id="fileInput" accept="image/png, image/jpeg">
+      </div>
+
+      <button id="startButton">Erlebnis Starten</button>
+    </div>
+  </div>
+
+  <button id="resetButton">➔ Neues Bild</button>
+
+  <script>
+    let scene, camera, renderer, controls, sphereMesh;
+    let loadedImageSrc = null;
+
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const dropZoneText = document.getElementById('dropZoneText');
+    const startButton = document.getElementById('startButton');
+    const uiContainer = document.getElementById('ui-container');
+    const resetButton = document.getElementById('resetButton');
+
+    // 1. Datei-Upload Handling
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#34c759';
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = '#007aff';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = '#007aff';
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    function handleFile(file) {
+      if (file.type === 'image/png' || file.type === 'image/jpeg') {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          loadedImageSrc = event.target.result;
+          dropZoneText.innerText = `✓ ${file.name}`;
+          startButton.classList.add('active');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert('Bitte wähle eine PNG- oder JPG-Datei aus.');
+      }
+    }
+
+    // 2. Initialisierung & Berechtigungen
+    startButton.addEventListener('click', () => {
+      if (!loadedImageSrc) return;
+
+      // iOS Motion Sensor Berechtigung anfragen
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission()
+          .then(permissionState => {
+            if (permissionState === 'granted') {
+              start3DView();
+            } else {
+              alert('Zugriff auf Bewegungssensoren verweigert.');
+            }
+          })
+          .catch(console.error);
+      } else {
+        start3DView();
+      }
+    });
+
+    // 3. 3D-Szene aufbauen
+    function start3DView() {
+      uiContainer.style.opacity = '0';
+      setTimeout(() => { uiContainer.style.display = 'none'; }, 500);
+      resetButton.style.display = 'block';
+
+      if (!scene) {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        controls = new THREE.DeviceOrientationControls(camera);
+
+        // Kugel erstellen (Innenseite bedrucken)
+        const geometry = new THREE.SphereGeometry(500, 60, 40);
+        geometry.scale(-1, 1, 1);
+
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(loadedImageSrc, (texture) => {
+          const material = new THREE.MeshBasicMaterial({ map: texture });
+          sphereMesh = new THREE.Mesh(geometry, material);
+          scene.add(sphereMesh);
+        });
+
+        window.addEventListener('resize', onWindowResize);
+        animate();
+      } else {
+        // Falls bereits eine Szene existiert, nur die Textur austauschen
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(loadedImageSrc, (texture) => {
+          sphereMesh.material.map = texture;
+          sphereMesh.material.needsUpdate = true;
+        });
+      }
+    }
+
+    // 4. Steuerungs-Loop & Resizing
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (controls) {
+        controls.update();
+      }
+      renderer.render(scene, camera);
+    }
+
+    // Reset-Button Logik
+    resetButton.addEventListener('click', () => {
+      uiContainer.style.display = 'flex';
+      setTimeout(() => { uiContainer.style.opacity = '1'; }, 10);
+      resetButton.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
