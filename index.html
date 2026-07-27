@@ -101,9 +101,28 @@
     font-size: 12px; color: rgba(244,237,224,0.4); text-decoration: none;
   }
   a.admin-link:hover { color: rgba(244,237,224,0.8); }
+
+  #debugBox {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: #ffdddd; color: #900; font-family: monospace;
+    font-size: 13px; padding: 10px; z-index: 9999;
+    white-space: pre-wrap; word-break: break-word;
+    display: none;
+  }
 </style>
 </head>
 <body>
+
+<div id="debugBox"></div>
+<script>
+  // Fehler-Fänger: zeigt jeden JS-Fehler sichtbar oben auf der Seite an
+  window.onerror = function(msg, url, line, col) {
+    const box = document.getElementById('debugBox');
+    box.style.display = 'block';
+    box.textContent = 'FEHLER: ' + msg + ' | Zeile: ' + line + ', Spalte: ' + col;
+    return false;
+  };
+</script>
 
 <a href="geschuetzt.html" class="admin-link">🔒 Übersicht</a>
 
@@ -140,8 +159,8 @@
 <script>
   // ====== SUPABASE-KONFIGURATION ======
   // Beide Werte findest du in Supabase unter: Settings → API
-  const SUPABASE_URL = "https://fobkarxcmqtphghkwluf.supabase.co";       // z. B. https://xxxxx.supabase.co
-  const SUPABASE_ANON_KEY = "sb_publishable_3f_61UVKhwEU03EgSaFpSg_eWPx-Ydf";      // der lange "anon public" Key
+  const SUPABASE_URL = "https://fobkarxcmqtphghkwluf.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_3f_61UVKhwEU03EgSaFpSg_eWPx-Ydf";
 
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
