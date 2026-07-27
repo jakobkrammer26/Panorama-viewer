@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Supabase Test</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="font-family: monospace; padding: 20px; font-size: 16px;">
+
+<div id="out">Teste...</div>
+
+<script>
+  const out = document.getElementById('out');
+  let log = [];
+
+  try {
+    log.push('1. Skript startet...');
+    log.push('2. typeof window.supabase = ' + typeof window.supabase);
+
+    const SUPABASE_URL = "https://fobkarxcmqtphghkwluf.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_3f_61UVKhwEU03EgSaFpSg_eWPx-Ydf";
+
+    log.push('3. URL Länge: ' + SUPABASE_URL.length);
+    log.push('4. Key Länge: ' + SUPABASE_ANON_KEY.length);
+
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    log.push('5. createClient erfolgreich! Client erstellt.');
+
+    out.innerHTML = log.join('<br>');
+    out.style.color = 'green';
+
+    // Test: Kann er überhaupt eine Anfrage schicken?
+    client.from('entries').select('*').limit(1).then(res => {
+      out.innerHTML += '<br>6. Anfrage-Ergebnis: ' + JSON.stringify(res);
+    });
+
+  } catch (e) {
+    log.push('FEHLER in Zeile: ' + e.message);
+    out.innerHTML = log.join('<br>');
+    out.style.color = 'red';
+  }
+</script>
+
+</body>
+</html>
